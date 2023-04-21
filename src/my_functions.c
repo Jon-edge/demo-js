@@ -80,7 +80,7 @@ bool load_font_data() {
 const uint8_t *get_char_data(char c) {
   int index = 0;
 
-  if (c >= 'A' && c <= 'C') {
+  if (c >= 'A' && c <= 'Z') {
     index = (c - 'A') * 5; // Assuming each character takes 5 bytes
   } else {
     // Return an empty character if the input character is not supported

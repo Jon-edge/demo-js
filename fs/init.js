@@ -123,7 +123,7 @@ let strip = NeoPixel.create(5, 512, NeoPixel.GRB);  // Adjust the pin number and
 // Call neopixel_print_string
 let neopixel_print_string = ffi('void neopixel_print_string_wrapper(char *, int, int)');
 
-neopixel_print_string('A', 0, 0);
+neopixel_print_string('ARR', 0, 0);
 
 /*
 let get_pixel_coordinates = ffi('int get_pixel_coordinates(char *, char *, int)');
