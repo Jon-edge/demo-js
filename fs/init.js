@@ -10,6 +10,7 @@ load('api_shadow.js');
 load('api_timer.js');
 load('api_sys.js');
 load('api_watson.js');
+load('api_neopixel.js');
 
 let btn = Cfg.get('board.btn1.pin');              // Built-in button GPIO
 let led = Cfg.get('board.led1.pin');              // Built-in LED GPIO number
@@ -31,12 +32,12 @@ let reportState = function() {
 };
 
 // Update state every second, and report to cloud if online
-Timer.set(1000, Timer.REPEAT, function() {
-  state.uptime = Sys.uptime();
-  state.ram_free = Sys.free_ram();
-  print('online:', online, JSON.stringify(state));
-  if (online) reportState();
-}, null);
+// Timer.set(1000, Timer.REPEAT, function() {
+//   state.uptime = Sys.uptime();
+//   state.ram_free = Sys.free_ram();
+//   print('online:', online, JSON.stringify(state));
+//   if (online) reportState();
+// }, null);
 
 // Set up Shadow handler to synchronise device state with the shadow state
 Shadow.addHandler(function(event, obj) {
@@ -110,3 +111,84 @@ Event.on(Event.CLOUD_CONNECTED, function() {
 Event.on(Event.CLOUD_DISCONNECTED, function() {
   online = false;
 }, null);
+
+print('==================================');
+print('==================================');
+print('==================================');
+print('==================================');
+
+// Initialize the neopixel strip
+let strip = NeoPixel.create(5, 512, NeoPixel.GRB);  // Adjust the pin number and pixel count according to your setup
+
+// Call neopixel_print_string
+let neopixel_print_string = ffi('void neopixel_print_string_wrapper(char *, int, int)');
+
+neopixel_print_string('A', 0, 0);
+
+/*
+let get_pixel_coordinates = ffi('int get_pixel_coordinates(char *, char *, int)');
+
+let CHAR_WIDTH = 5; // Set the appropriate value for your custom font
+let CHAR_HEIGHT = 8;
+let SPACE_BETWEEN_CHARS = 1;
+
+let text = "ABC";
+let text_length = text.length;
+let matrix_width = text_length * (CHAR_WIDTH + SPACE_BETWEEN_CHARS) - SPACE_BETWEEN_CHARS;
+let matrix_height = CHAR_HEIGHT;
+
+let coords_str = "";
+let coords_size = 256; // You can adjust this value based on your needs
+for (let i = 0; i < coords_size * 2; i++) {
+  coords_str += "\x00";
+}
+
+let coords_count = get_pixel_coordinates(text, coords_str, coords_size);
+
+let x_coords = [];
+let y_coords = [];
+for (let i = 0; i < coords_count; i++) {
+  x_coords[i] = coords_str.at(i * 2);
+  y_coords[i] = coords_str.at(i * 2 + 1);
+}
+
+// debug:
+print('coords_count:', coords_count);
+print('x_coords:', JSON.stringify(x_coords));
+print('y_coords:', JSON.stringify(y_coords));
+
+
+// Initialize an empty matrix with spaces
+let matrix = [];
+for (let y = 0; y < matrix_height; y++) {
+  let row = [];
+  for (let x = 0; x < matrix_width; x++) {
+    row[x] = ' ';
+  }
+  matrix[y] = row;
+}
+
+// Fill the matrix with the pixel coordinates
+for (let i = 0; i < coords_count; i++) {
+  let x = x_coords[i];
+  let y = y_coords[i];
+  matrix[y][x] = '#';
+}
+
+// Print the matrix to the console
+for (let y = 0; y < matrix_height; y++) {
+  let row = '';
+  for (let x = 0; x < matrix_width; x++) {
+    row += matrix[y][x];
+  }
+  print(row);
+}
+
+// print('==================================');
+// print('==================================');
+// print('==================================');
+// print('==================================');
+
+// let print_string = ffi('void print_string(char *)');
+// print_string('Hello, World!');
+*/

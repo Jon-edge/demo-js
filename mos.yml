@@ -10,16 +10,32 @@ mongoose_os_version: ${mos.version}
 config_schema:
   - ["mqtt.server", "mqtt.eclipseprojects.io:1883"]
   - ["i2c.enable", true]
+  - ["i2c.sda_gpio", 21]
+  - ["i2c.scl_gpio", 22]
+  - ["wifi.sta.enable", true]
+  - ["wifi.sta.ssid", ""]
+  - ["wifi.sta.pass", ""]
+  - ["dash.enable", true]
+  - ["dash.token", "wSvGCTKzNyeu7lOpMcppZw"]
 
 tags:
+  - c
   - js
 
 filesystem:
   - fs
 
+sources:
+  - src
+
 libs:
   - location: https://github.com/mongoose-os-libs/boards
   - location: https://github.com/mongoose-os-libs/js-demo-bundle
+  - origin: https://github.com/mongoose-os-libs/mjs
+  - origin: https://github.com/mongoose-os-libs/wifi
+  - origin: https://github.com/mongoose-os-libs/neopixel
+  - origin: https://github.com/mongoose-os-libs/vfs-common
+  - origin: https://github.com/mongoose-os-libs/core
 
 conds:
   - when: mos.platform == "esp32"
