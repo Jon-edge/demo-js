@@ -1,4 +1,5 @@
 #include "mgos.h"
+#include "mjs.h"
 #include "mgos_vfs.h"
 #include "mgos_neopixel.h"
 #include "my_functions.h"
@@ -8,212 +9,229 @@
 
 #define CHAR_WIDTH 5
 #define CHAR_HEIGHT 7
+#define CHAR_MAX_PIXELS (CHAR_WIDTH * CHAR_HEIGHT)
 #define SPACE_BETWEEN_CHARS 1
+#define SPACE_WIDTH 3
 
 #define PANEL_WIDTH 32
 #define PANEL_HEIGHT 16
-#define NUM_PIXELS PANEL_WIDTH * PANEL_HEIGHT
+#define NUM_PIXELS PANEL_WIDTH *PANEL_HEIGHT
 #define NEOPIXEL_PIN 5
 
 static struct mgos_neopixel *s_strip = NULL;
 
-enum mgos_app_init_result mgos_app_init(void) {
+enum mgos_app_init_result mgos_app_init(void)
+{
   // Initialize NeoPixel strip
   s_strip = mgos_neopixel_create(NEOPIXEL_PIN, NUM_PIXELS, MGOS_NEOPIXEL_ORDER_GRB);
-  if (!s_strip) {
+  if (!s_strip)
+  {
     LOG(LL_ERROR, ("Error initializing neopixel strip"));
     return MGOS_APP_INIT_ERROR;
   }
 
-  // ...
-
   return MGOS_APP_INIT_SUCCESS;
 }
 
-/*
-enum mgos_app_init_result mgos_app_init(void) {
-  if (!load_font_data()) {
-    printf("Failed to load font data.\n");
-    // return MGOS_APP_INIT_ERROR; // Comment out this line
+// Probably no longer needed.
+void neopixel_print_string_wrapper(const char *text, int x_coord, int y_coord)
+{
+  if (s_strip)
+  {
+    neopixel_print_string(text, x_coord, y_coord);
   }
-
-  return MGOS_APP_INIT_SUCCESS; // Always return success to allow the app to continue running
-}
-
-bool load_font_data() {
-  // Open the font data file
-  FILE *font_file = fopen(FONT_FILE_PATH, "r");
-  if (!font_file) {
-    printf("Failed to open font data file: %s", FONT_FILE_PATH);
-    return false;
-  }
-
-  // Allocate memory for font data
-  font_data_size = CHAR_WIDTH * CHAR_HEIGHT * 3;  // 3 characters
-  font_data = (uint8_t *)malloc(font_data_size);
-  if (!font_data) {
-    printf("Failed to allocate memory for font data");
-    fclose(font_file);
-    return false;
-  }
-
-  // Read font data from the file
-  size_t index = 0;
-  while (fscanf(font_file, "%02hhx,", &font_data[index]) == 1) {
-    index++;
-  }
-  
-  for (int i = 0; i < font_data_size; i++) {
-    if (i % CHAR_WIDTH == 0) {
-      printf("\n")
-    }
-    printf("0x%02x ", font_data[i]);
-  }
-  printf("\n");
-
-  fclose(font_file);
-  return true;
-}
-*/
-
-// Function to get the font data for a specific character
-const uint8_t *get_char_data(char c) {
-  int index = 0;
-
-  if (c >= 'A' && c <= 'Z') {
-    index = (c - 'A') * 5; // Assuming each character takes 5 bytes
-  } else {
-    // Return an empty character if the input character is not supported
-    static const uint8_t empty_char[5] = {0};
-    return empty_char;
-  }
-
-  return &FONT_DATA[index];
-}
-
-int get_pixel_coordinates(const char *text, char *coords_str, int coords_size) {
-  int text_length = strlen(text);
-  int coords_index = 0;
-
-  for (int i = 0; i < text_length; i++) {
-    char c = text[i];
-    int char_offset_x = i * (CHAR_WIDTH + SPACE_BETWEEN_CHARS);
-    const uint8_t *char_data = get_char_data(c);
-    if (char_data == NULL) {
-      printf("Error: char_data is NULL for character %c\n", c);
-      continue;
-    }
-
-// printf("Character: %c\n", c);
-// for (int i = 0; i < CHAR_HEIGHT; i++) {
-//   printf("%02x ", char_data[i]);
-// }
-// printf("\n");
-    for (int x = 0; x < CHAR_WIDTH; x++) {
-      for (int y = 0; y < CHAR_HEIGHT; y++) {
-        if (coords_index < coords_size) {
-          if ((char_data[x] >> y) & 0x01) {
-            printf("Bit value at (%d, %d): %d\n", x, y, (char_data[x] >> y) & 0x01);
-            coords_str[coords_index * 2] = char_offset_x + x;
-            coords_str[coords_index * 2 + 1] = y;
-            coords_index++;
-  
-// // Inside the get_pixel_coordinates function, add the following line
-// mgos_usleep(1000); // Add a small delay to avoid overflowing the console output buffer
-
-// printf("Generated coordinates: %d, %d\n", char_offset_x + x, y);
-          }
-        }
-      }
-    }
-  }
-
-  return coords_index;
-}
-
-void neopixel_print_string_wrapper(const char *text, int x_coord, int y_coord) {
-  if (s_strip) {
-    neopixel_print_string(s_strip, text, x_coord, y_coord);
-  } else {
+  else
+  {
     LOG(LL_ERROR, ("NeoPixel strip not initialized"));
   }
 }
 
+void neopixel_print_string(const char *str, int x_offset, int y_offset)
+{
+  int *coords = (int *)malloc(CHAR_MAX_PIXELS * strlen(str) * sizeof(int) * 2);
+  int coord_count = 0;
+  int char_offset_x = 0;
 
-// The matrix is configured with the following strip_index configuration:
-// 0  
-// 1   .
-// .   .
-// .   .
-// .  17
-// 15 16
-// 
-// The x_coord and y_coordinate indexes map to:
-// strip_index 0 = x_coord: 0, y_coord: 15
-// strip_index 16 = x_coord: 1, y_coord: 0
-void neopixel_print_string(struct mgos_neopixel *strip, const char *text, int x_coord, int y_coord) {
+  for (int i = 0; i < strlen(str); i++)
+  {
+    char c = str[i];
 
-  int text_length = strlen(text);
-  for (int i = 0; i < text_length; i++) {
-    char c = text[i];
-    printf("Processing character: %c\n", c);
-    const uint8_t *char_data = get_char_data(c);
-    for (int char_y = 0; char_y < CHAR_HEIGHT; char_y++) {
-      for (int char_x = 0; char_x < CHAR_WIDTH; char_x++) {
-          // Process one column
-        if ((char_data[char_y] >> (CHAR_WIDTH - 1 - char_x)) & 0x01) {
+    if (c != ' ')
+    {
+      const uint8_t *char_data = get_char_data(c);
 
-          // Calculate the absolute coordinates of the character data
-          int matrix_x = x_coord + char_x;
-          int matrix_y = y_coord + char_y;
-
-          // Transform the absolute coordinates into an linear LED index for a
-          // continuous zigzag panel configuration.
-          int strip_index;
-          if (matrix_x % 2 == 0) {
-            // Even columns start at the top
-            strip_index = matrix_y * PANEL_WIDTH + matrix_x;
-          } else {
-            // Odd columns start at the bottom
-            strip_index = (matrix_y + 1) * PANEL_WIDTH - matrix_x - 1;
-          }
-
-          // Print the variables for debugging
-          printf("led_x: %d, led_y: %d, led_index: %d\n", matrix_x, matrix_y, strip_index);
-
-          if (strip_index >= 0 && strip_index < PANEL_WIDTH * PANEL_HEIGHT) {
-            mgos_neopixel_set(strip, strip_index, 0, 50, 0);
-          } else {
-            printf("Invalid strip index: %d\n", strip_index);
+      for (int x = 0; x < CHAR_WIDTH; x++)
+      {
+        for (int y = 0; y < CHAR_HEIGHT; y++)
+        {
+          if ((char_data[x] >> (CHAR_HEIGHT - 1 - y)) & 0x01)
+          {
+            coords[coord_count * 2] = char_offset_x + x + x_offset;
+            coords[coord_count * 2 + 1] = y + y_offset;
+            coord_count++;
           }
         }
       }
+      char_offset_x += (CHAR_WIDTH + SPACE_BETWEEN_CHARS);
+    }
+    else
+    {
+      char_offset_x += SPACE_WIDTH;
     }
   }
-  // Show the updated pixels on the strip
-  mgos_neopixel_show(strip);
+
+  neopixel_print_pixels(coords, coord_count);
+
+  // Free the allocated memory for coords
+  free(coords);
 }
 
-    /*int char_offset_x = i * (CHAR_WIDTH + SPACE_BETWEEN_CHARS);
-    const uint8_t *char_data = get_char_data(c);
+// Function to get the font data for a specific character
+const uint8_t *get_char_data(char c)
+{
+  int index = 0;
 
-    for (int x = 0; x < CHAR_WIDTH; x++) {
-      for (int y = 0; y < CHAR_HEIGHT; y++) {
-        if ((char_data[x] >> y) & 0x01) {
-          int led_x = x_coord + char_offset_x + x;
-          int led_y = y_coord + y;
-          
-          // Calculate the index for the zig-zag configuration
-          int led_index = led_y * 16;
-          if (led_y % 2 == 0) {
-            led_index += led_x;
-          } else {
-            led_index += 15 - led_x;
-          }
+  uint8_t char_offset;
+  if (c >= '0' && c <= '9')
+  {
+    char_offset = c - '0' + 52; // Numbers start at index 26
+  }
+  else
+  {
+    char_offset = c - 'A';
+    if (char_offset > 25)
+      char_offset = c - 'a';
+  }
 
-          // Set the pixel color (change the color to your preference)
-          mgos_neopixel_set(strip, led_index, 255, 0, 0);
+  return &FONT_DATA[char_offset * 5];
+}
+
+bool neopixel_print_pixels(int *coords, int count)
+{
+  mgos_neopixel_clear(s_strip);
+
+  int *x_coords = (int *)malloc(count * sizeof(int));
+  int *y_coords = (int *)malloc(count * sizeof(int));
+
+  for (int i = 0; i < count; i++)
+  {
+    int x_coord = coords[i * 2];
+    int y_coord = coords[i * 2 + 1];
+    x_coords[i] = x_coord;
+    y_coords[i] = y_coord;
+
+    // Start from what we define as x:0, y:0
+    // This is physically at the end of the strip, bottom left of the panel
+    int led_index = PANEL_WIDTH * PANEL_HEIGHT - 1;
+    int init = led_index;
+
+    // Get to the bottom of the correct column.
+    // Move back along the strip a column at a time.
+    led_index -= x_coord * PANEL_HEIGHT;
+    int col_bottom0 = led_index;
+
+    // Handle the strip's zigzag layout on the panel. Every other column is
+    // reversed.
+    int col_bottom1 = led_index;
+    if (x_coord % 2 == 0)
+    {
+      // Already starting at the bottom of this column.
+
+      // Adjust for Y: Reducing led_index moves up the panel.
+      // Subtract Y to move up as Y grows
+      led_index -= y_coord;
+    }
+    else
+    {
+      // Started at the top of the panel. Adjust to get to X0 by further moving 
+      // back along the strip.
+      led_index -= PANEL_HEIGHT - 1;
+      col_bottom1 = led_index;
+
+      // Adjust for Y: Increasing led_index moves up the panel
+      led_index += y_coord;
+    }
+
+    // debug
+    printf("x: %d, y: %d, init: %d, colBottom0: %d, colBottom1: %d, led_index: %d\n", x_coord, y_coord, init, col_bottom0, col_bottom1, led_index);
+
+    if (led_index >= 0 && led_index < PANEL_WIDTH * PANEL_HEIGHT)
+    {
+      mgos_neopixel_set(s_strip, led_index, 25, 25, 25); // Full brightness white color
+    }
+    else
+    {
+      printf("Invalid strip index: %d\n", led_index);
+      return false;
+    }
+  }
+
+  mgos_neopixel_show(s_strip);
+
+  // Print the matrix to the console in ASCII form for debugging
+  print_matrix_ascii(x_coords, y_coords, count, 32, 16);
+
+  free(x_coords);
+  free(y_coords);
+
+  return true;
+}
+
+// Debugging functions
+
+void test_neopixel_print_pixels()
+{
+  int test_data[][2] = {
+      {1, 15}, {2, 15}, {3, 15}, {0, 14}, {4, 14}, {0, 13}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {0, 12}, {4, 12}, {0, 11}, {4, 11}};
+
+  int count = sizeof(test_data) / sizeof(test_data[0]);
+  int *coords = (int *)test_data;
+
+  bool result = neopixel_print_pixels(coords, count);
+  printf("Result: %d\n", result);
+}
+
+void print_matrix_ascii(int *x_coords, int *y_coords, int count, int width, int height)
+{
+  for (int y = height - 1; y >= 0; y--)
+  {
+    for (int x = 0; x < width; x++)
+    {
+      bool is_pixel_set = false;
+
+      // Check each coord for a pixel
+      for (int i = 0; i < count; i++)
+      {
+        if (x == x_coords[i] && y == y_coords[i])
+        {
+          printf("X");
+          is_pixel_set = true;
+          break;
         }
       }
-    }*/
-  
+
+      if (!is_pixel_set)
+      {
+        printf(".");
+      }
+    }
+    printf("\n");
+  }
+}
+
+bool neopixel_print_pixel(int led_index)
+{
+  mgos_neopixel_clear(s_strip);
+
+  if (led_index >= 0 && led_index < PANEL_WIDTH * PANEL_HEIGHT)
+  {
+    mgos_neopixel_set(s_strip, led_index, 25, 0, 0);
+    mgos_neopixel_show(s_strip);
+    return true;
+  }
+  else
+  {
+    printf("Invalid strip index: %d", led_index);
+    return false;
+  }
+}

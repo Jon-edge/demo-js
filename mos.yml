@@ -1,6 +1,6 @@
 author: mongoose-os
 description: A JS-enabled demo Mongoose OS firmware
-# arch: PLATFORM
+arch: PLATFORM
 version: 1.0
 manifest_version: 2017-05-18
 libs_version: ${mos.version}
@@ -29,8 +29,8 @@ sources:
   - src
 
 libs:
-  - location: https://github.com/mongoose-os-libs/boards
-  - location: https://github.com/mongoose-os-libs/js-demo-bundle
+  - origin: https://github.com/mongoose-os-libs/boards
+  - origin: https://github.com/mongoose-os-libs/js-demo-bundle
   - origin: https://github.com/mongoose-os-libs/mjs
   - origin: https://github.com/mongoose-os-libs/wifi
   - origin: https://github.com/mongoose-os-libs/neopixel
