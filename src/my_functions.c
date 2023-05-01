@@ -6,6 +6,9 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define CHAR_WIDTH 5
 #define CHAR_HEIGHT 7
@@ -33,26 +36,36 @@ enum mgos_app_init_result mgos_app_init(void)
   return MGOS_APP_INIT_SUCCESS;
 }
 
-// Probably no longer needed.
-void neopixel_print_string_wrapper(const char *text, int x_coord, int y_coord)
-{
-  if (s_strip)
-  {
-    neopixel_print_string(text, x_coord, y_coord);
-  }
-  else
-  {
-    LOG(LL_ERROR, ("NeoPixel strip not initialized"));
-  }
+// Utils
+void round_to_precision(char *result_str, double number, int precision, size_t result_size) {
+  snprintf(result_str, result_size, "%.*f", precision, number);
 }
 
-void neopixel_print_string(const char *str, int x_offset, int y_offset)
+/** 
+ * Random integer, inclusive 
+ * */
+int rand_int(int min, int max, int seed) {
+    // Seed the random number generator with the current time
+    //srand(time(NULL));
+
+    return seed % (max - min + 1) + min;
+}
+
+// Pixels
+
+void neopixel_set_string(const char *str, int x_offset, int y_offset, int r, int g, int b)
 {
-  int *coords = (int *)malloc(CHAR_MAX_PIXELS * strlen(str) * sizeof(int) * 2);
+  // HACK: Cap at 5 letters
+  int strLen = strlen(str);
+  if (strLen >= 5) {
+    strLen = 5;
+  }
+
+  int *coords = (int *)malloc(CHAR_MAX_PIXELS * strLen * sizeof(int) * 2);
   int coord_count = 0;
   int char_offset_x = 0;
 
-  for (int i = 0; i < strlen(str); i++)
+  for (int i = 0; i < strLen ; i++)
   {
     char c = str[i];
 
@@ -72,7 +85,11 @@ void neopixel_print_string(const char *str, int x_offset, int y_offset)
           }
         }
       }
-      char_offset_x += (CHAR_WIDTH + SPACE_BETWEEN_CHARS);
+      int charSpace = SPACE_BETWEEN_CHARS;
+      if (c == '.') {
+        charSpace = 0;
+      }
+      char_offset_x += (CHAR_WIDTH + charSpace);
     }
     else
     {
@@ -80,7 +97,7 @@ void neopixel_print_string(const char *str, int x_offset, int y_offset)
     }
   }
 
-  neopixel_print_pixels(coords, coord_count);
+  neopixel_set_pixels(coords, coord_count, r, g, b);
 
   // Free the allocated memory for coords
   free(coords);
@@ -90,26 +107,37 @@ void neopixel_print_string(const char *str, int x_offset, int y_offset)
 const uint8_t *get_char_data(char c)
 {
   int index = 0;
-
   uint8_t char_offset;
+
   if (c >= '0' && c <= '9')
   {
-    char_offset = c - '0' + 52; // Numbers start at index 26
+    char_offset = c - '0' + 52; // Numbers start at index 52
+  }
+  else if (c >= 'A' && c <= 'Z')
+  {
+    char_offset = c - 'A';
+  }
+  else if (c >= 'a' && c <= 'z')
+  {
+    char_offset = c - 'a' + 26;
   }
   else
   {
-    char_offset = c - 'A';
-    if (char_offset > 25)
-      char_offset = c - 'a';
+    switch (c)
+    {
+      case '%': char_offset = 62; break;
+      case '-': char_offset = 63; break;
+      case '+': char_offset = 64; break;
+      case '.': char_offset = 65; break;
+      default: char_offset = 0; break; // Return 0 index if character not found
+    }
   }
 
   return &FONT_DATA[char_offset * 5];
 }
 
-bool neopixel_print_pixels(int *coords, int count)
+bool neopixel_set_pixels(int *coords, int count, int r, int g, int b)
 {
-  mgos_neopixel_clear(s_strip);
-
   int *x_coords = (int *)malloc(count * sizeof(int));
   int *y_coords = (int *)malloc(count * sizeof(int));
 
@@ -153,11 +181,11 @@ bool neopixel_print_pixels(int *coords, int count)
     }
 
     // debug
-    printf("x: %d, y: %d, init: %d, colBottom0: %d, colBottom1: %d, led_index: %d\n", x_coord, y_coord, init, col_bottom0, col_bottom1, led_index);
+    // printf("x: %d, y: %d, init: %d, colBottom0: %d, colBottom1: %d, led_index: %d\n", x_coord, y_coord, init, col_bottom0, col_bottom1, led_index);
 
     if (led_index >= 0 && led_index < PANEL_WIDTH * PANEL_HEIGHT)
     {
-      mgos_neopixel_set(s_strip, led_index, 25, 25, 25); // Full brightness white color
+      mgos_neopixel_set(s_strip, led_index, r, g, b);
     }
     else
     {
@@ -165,8 +193,6 @@ bool neopixel_print_pixels(int *coords, int count)
       return false;
     }
   }
-
-  mgos_neopixel_show(s_strip);
 
   // Print the matrix to the console in ASCII form for debugging
   print_matrix_ascii(x_coords, y_coords, count, 32, 16);
@@ -177,19 +203,15 @@ bool neopixel_print_pixels(int *coords, int count)
   return true;
 }
 
-// Debugging functions
-
-void test_neopixel_print_pixels()
-{
-  int test_data[][2] = {
-      {1, 15}, {2, 15}, {3, 15}, {0, 14}, {4, 14}, {0, 13}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {0, 12}, {4, 12}, {0, 11}, {4, 11}};
-
-  int count = sizeof(test_data) / sizeof(test_data[0]);
-  int *coords = (int *)test_data;
-
-  bool result = neopixel_print_pixels(coords, count);
-  printf("Result: %d\n", result);
+void neopixel_clear() {
+  mgos_neopixel_clear(s_strip);
 }
+
+void neopixel_show() {
+  mgos_neopixel_show(s_strip);
+}
+
+// Debugging functions
 
 void print_matrix_ascii(int *x_coords, int *y_coords, int count, int width, int height)
 {
@@ -235,3 +257,4 @@ bool neopixel_print_pixel(int led_index)
     return false;
   }
 }
+

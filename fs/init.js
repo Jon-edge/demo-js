@@ -11,17 +11,18 @@ load('api_timer.js');
 load('api_sys.js');
 load('api_watson.js');
 load('api_neopixel.js');
+load('api_http.js');
+load('api_rpc.js')
 
 let btn = Cfg.get('board.btn1.pin');              // Built-in button GPIO
 let led = Cfg.get('board.led1.pin');              // Built-in LED GPIO number
 let onhi = Cfg.get('board.led1.active_high');     // LED on when high?
-let state = {on: false, btnCount: 0, uptime: 0};  // Device state
+let state = {on: false, btcPrice: 0, btcDailyPct: 0, uptime: 0};  // Device state
 let online = false;                               // Connected to the cloud?
 
 let setLED = function(on) {
   let level = onhi ? on : !on;
   GPIO.write(led, level);
-  print('LED on ->', on);
 };
 
 GPIO.set_mode(led, GPIO.MODE_OUTPUT);
@@ -32,12 +33,12 @@ let reportState = function() {
 };
 
 // Update state every second, and report to cloud if online
-// Timer.set(1000, Timer.REPEAT, function() {
-//   state.uptime = Sys.uptime();
-//   state.ram_free = Sys.free_ram();
-//   print('online:', online, JSON.stringify(state));
-//   if (online) reportState();
-// }, null);
+Timer.set(1000, Timer.REPEAT, function() {
+  state.uptime = Sys.uptime();
+  state.ram_free = Sys.free_ram();
+  // print('online:', online, JSON.stringify(state));
+  if (online) reportState();
+}, null);
 
 // Set up Shadow handler to synchronise device state with the shadow state
 Shadow.addHandler(function(event, obj) {
@@ -112,83 +113,115 @@ Event.on(Event.CLOUD_DISCONNECTED, function() {
   online = false;
 }, null);
 
-print('==================================');
-print('==================================');
-print('==================================');
-print('==================================');
+print('=============== INIT BEGIN ===================');
+print('============= FFI Imports =====================');
 
-// Initialize the neopixel strip
-let strip = NeoPixel.create(5, 512, NeoPixel.GRB);  // Adjust the pin number and pixel count according to your setup
+let setString = ffi('void neopixel_set_string(char *, int, int, int, int, int)');
+let clearPixels = ffi('void neopixel_clear()');
+let showPixels = ffi('void neopixel_show()');
+let randInt = ffi('int rand_int(int, int, int)');
+// let round_to_precision = ffi('void round_to_precision(char *, double, int,
+// int)');
 
-// Call neopixel_print_string
-let neopixel_print_string = ffi('void neopixel_print_string_wrapper(char *, int, int)');
+// Initial tests
+// printString('012345', 0, 9);
 
-neopixel_print_string('ARR', 0, 0);
+print('================ JS defs ==================');
 
-/*
-let get_pixel_coordinates = ffi('int get_pixel_coordinates(char *, char *, int)');
+let printString = function(str, x, y, opts) {
+  x = x || 0;
+  y = y || 0;
+  let color = {r: 25, g: 25, b: 25};
+  let isClear = true;
+  let isShow = true;
 
-let CHAR_WIDTH = 5; // Set the appropriate value for your custom font
-let CHAR_HEIGHT = 8;
-let SPACE_BETWEEN_CHARS = 1;
-
-let text = "ABC";
-let text_length = text.length;
-let matrix_width = text_length * (CHAR_WIDTH + SPACE_BETWEEN_CHARS) - SPACE_BETWEEN_CHARS;
-let matrix_height = CHAR_HEIGHT;
-
-let coords_str = "";
-let coords_size = 256; // You can adjust this value based on your needs
-for (let i = 0; i < coords_size * 2; i++) {
-  coords_str += "\x00";
-}
-
-let coords_count = get_pixel_coordinates(text, coords_str, coords_size);
-
-let x_coords = [];
-let y_coords = [];
-for (let i = 0; i < coords_count; i++) {
-  x_coords[i] = coords_str.at(i * 2);
-  y_coords[i] = coords_str.at(i * 2 + 1);
-}
-
-// debug:
-print('coords_count:', coords_count);
-print('x_coords:', JSON.stringify(x_coords));
-print('y_coords:', JSON.stringify(y_coords));
-
-
-// Initialize an empty matrix with spaces
-let matrix = [];
-for (let y = 0; y < matrix_height; y++) {
-  let row = [];
-  for (let x = 0; x < matrix_width; x++) {
-    row[x] = ' ';
+  if (opts) {
+    if (opts.color && opts.color.r !== undefined && opts.color.g !== undefined && opts.color.b !== undefined) {
+      color = opts.color;
+    }
+    if (opts.isClear !== undefined) {
+      isClear = opts.isClear;
+    }
+    if (opts.isShow !== undefined) {
+      isShow = opts.isShow;
+    }
   }
-  matrix[y] = row;
-}
-
-// Fill the matrix with the pixel coordinates
-for (let i = 0; i < coords_count; i++) {
-  let x = x_coords[i];
-  let y = y_coords[i];
-  matrix[y][x] = '#';
-}
-
-// Print the matrix to the console
-for (let y = 0; y < matrix_height; y++) {
-  let row = '';
-  for (let x = 0; x < matrix_width; x++) {
-    row += matrix[y][x];
+  
+  if (isClear) {
+    clearPixels();
   }
-  print(row);
-}
 
-// print('==================================');
-// print('==================================');
-// print('==================================');
-// print('==================================');
+  setString(str, x, y, color.r, color.g, color.b);
 
-// let print_string = ffi('void print_string(char *)');
-// print_string('Hello, World!');
-*/
+  if (isShow) {
+    showPixels();
+  }
+};
+
+let roundToNearest = function(number) {
+  let roundedNumber = (number >= 0) ? ((number * 100 + 0.5) | 0) : ((number * 100 - 0.5) | 0);
+  return roundedNumber / 100;
+};
+
+
+let fetchBTCPrice = function() {
+  if (online) {
+  HTTP.query({
+    url: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true', 
+    success: function (body, full_http_msg) {
+      print('Fetching...');
+      let response = JSON.parse(body);
+      let btcPrice = JSON.stringify(roundToNearest(response.bitcoin.usd));
+      let btcPctChangeRaw = response.bitcoin.usd_24h_change;
+      // let btcPctChange = JSON.stringify(roundToPrecision(btcPctChangeRaw, 2));
+      let btcPctChange = JSON.stringify(roundToNearest(btcPctChangeRaw)).slice(0, 4);
+      print('BTC price:', btcPrice, 'USD');
+      print('24h change:', btcPctChange, '%');
+      state.btcPrice = btcPrice;
+      state.btcDailyPct = btcPctChange;
+
+      let pctSign = btcPctChangeRaw > 0 ? '+' : '';
+      let color = (btcPctChangeRaw < 0) ? {r: 50, g: 0, b: 0} : {r: 0, g: 50, b: 0};
+
+      printString(btcPrice, 1, 9, {isClear: true, isShow: false});
+      
+      let xOffsetHack = 1; // btcPctChange === '0' ? 5 : 1;
+      printString(pctSign + btcPctChange + '%', xOffsetHack, 0, {isClear: false, isShow: true, color: color});
+
+      print('Done.');
+    },
+    error: function(err) {
+      print('Error fetching BTC price:', err);
+    }
+  });
+  } else {
+    printString("OFFLN", 0, 4)
+  }
+};
+
+print('Drawing init matrix display');
+printString('BRB', 6, 5);
+print('=============== Init0 Done ===================');
+
+
+// Fetch the BTC price every x seconds
+Timer.set(15000, Timer.REPEAT, fetchBTCPrice, null);
+
+// Heartbeat
+Timer.set(1000, Timer.REPEAT, function(){
+  state.on = !state.on;
+  setLED(state.on);
+}, null);
+
+
+RPC.addHandler('Huddle', function(args) {
+  if (typeof(args) === 'object' && typeof(args.count) === 'number') {
+    let randNum = randInt(1, args.count, Sys.uptime());
+    printString(JSON.stringify(randNum), 10, 5, {color: {r: 0, g: 75, b: 25}});
+    return { value: randNum };
+  } else {
+    return {error: -1, message: 'Bad request. Expected: {"count":N1}'};
+  }
+});
+
+print('=============== JS PARSING COMPLETE ===================');

@@ -9,15 +9,18 @@
 #ifndef MY_FUNCTIONS_H
 #define MY_FUNCTIONS_H
 
-bool neopixel_print_pixels(int *coords, int count);
-void neopixel_print_string(const char *str, int x_offset, int y_offset) ;
-void neopixel_print_string_wrapper(const char *text, int x_coord, int y_coord);
+int rand_int(int min, int max, int seed);
+void round_to_precision(char *result_str, double number, int precision, size_t result_size);
+
+bool neopixel_set_pixels(int *coords, int count, int r, int g, int b);
+void neopixel_set_string(const char *str, int x_offset, int y_offset, int r, int g, int b);
 const uint8_t *get_char_data(char c);
+void neopixel_clear();
+void neopixel_show();
 
 void test_neopixel_print_pixels();
 void print_matrix_ascii(int *x_coords, int *y_coords, int count, int width, int height);
 bool neopixel_print_pixel(int led_index);
-
 
 // Font definition
 static const uint8_t FONT_DATA[] = {
@@ -82,9 +85,12 @@ static const uint8_t FONT_DATA[] = {
   0x3C, 0x4A, 0x49, 0x49, 0x30, // Number 6
   0x01, 0x71, 0x09, 0x05, 0x03, // Number 7
   0x36, 0x49, 0x49, 0x49, 0x36, // Number 8
-  0x06, 0x49, 0x49, 0x29, 0x1E  // Number 9
+  0x06, 0x49, 0x49, 0x29, 0x1E, // Number 9
+  0x23, 0x13, 0x08, 0x64, 0x62, // Character %
+  0x08, 0x08, 0x08, 0x08, 0x08, // Character -
+  0x08, 0x08, 0x3E, 0x08, 0x08, // Character +
+  0x00, 0x00, 0x40, 0x00, 0x00 // Character .
 };
-
 
 // void print_string(const char *input);
 
