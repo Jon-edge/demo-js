@@ -1,4 +1,4 @@
-# Fork to display BTC Ticker
+# BTC Ticker Fork
 
 ![PXL_20240605_200914561 MP](https://github.com/Jon-edge/demo-js/assets/90650827/98bf31a4-7807-4a7c-acaa-f91448957f26)
 
